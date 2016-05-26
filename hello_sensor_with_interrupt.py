@@ -1,49 +1,57 @@
 
 import  RPi.GPIO as GPIO
 import time
+
 GPIO.setmode(GPIO.BCM)
 TRIG = 23
 ECHO = 24
 
 print "Distance measurement in progress"
-GPIO.setup(TRIG,GPIO.OUT, pull_up_down=GPIO.PUD_DOWN)
+GPIO.setwarnings(False)
+GPIO.setup(TRIG,GPIO.OUT)
 GPIO.setup(ECHO, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
 
 pulse_start = time.time()
 pulse_end = time.time()
+waiting_for_high = True
+waiting_for_low = False
 
-
-def send_pulse():
-	GPIO.input(TRIG,True)
+def send_trigger():
+	time.sleep(1)
+	GPIO.output(TRIG,True)
 	time.sleep(0.00001)
 	GPIO.output(TRIG,False)
 	 
-def on_low_echo(channel):
-	pulse_start = time.time()	
-	print 'got high'
+def on_echo_pulse(channel):
+	global pulse_end, pulse_start, got_high, waiting_for_high, waiting_for_low
+	if GPIO.input(ECHO) == GPIO.LOW and waiting_for_low:
+		#print 'echo pulse low'
+		pulse_end = time.time()
+		print_distance(pulse_end,pulse_start)
+		waiting_for_low = False
+		waiting_for_high = True
+	elif waiting_for_high:
+		#print 'echo pulse high'
+		pulse_start = time.time()
+		waiting_for_high = False
+		waiting_for_low = True
 
-def on_high_echo(channel):
-	pulse_end = pulse.time()
-	print  'got low'
-	print_distance()
-
-def print_distance():
-	pulse_duration = pulse_end - pulse_start
+def print_distance(pend,pstart):
+	pulse_duration = pend - pstart
 	distance = pulse_duration * 17150
 	distance = round(distance,2)
-	print 'Distance %d cm',distance
+	print 'Distance %s cm' % distance
+	send_trigger()
 		
 try:
-
+	GPIO.add_event_detect(ECHO,GPIO.BOTH, callback=on_echo_pulse)
 	GPIO.output(TRIG,False)
 	print "Waiting for Sendor to settle"
 	time.sleep(2)
-	GPIO.add_event_detect(ECHO,GPIO.RISING, callback=on_high_echo)
-	GPIO.add_event_detect(ECHO,GPIO.FALLING,callback=on_low_echo)
-	send_pulse()
-	
+	send_trigger()
+	print 'press any  key to terminate'
+	raw_input()
 	
 finally:
 	GPIO.cleanup()
-
